@@ -685,7 +685,9 @@ async function cfgIA(){corpo(`<h2>Assistente IA</h2><p class="small">O assistent
     <div class="pl-row"><span>Situação</span><label class="chk"><input type="checkbox" id="plIaA"> Assistente ligado para quem tem a permissão “Usar o Assistente IA”</label></div>
     <p class="small">A chave fica cifrada no banco do servidor e nunca volta para o navegador — aqui aparecem só os 4 últimos caracteres. Deixe o campo em branco para manter a chave atual.</p>
     <div class="pl-actions"><button class="tb primary" type="submit">Salvar</button><button class="tb" type="button" id="plIaT">Testar conexão</button><button class="tb" type="button" id="plIaX" hidden>Remover chave</button><span class="pl-err" id="plIaE"></span></div>
-    <div class="pl-teste" id="plIaR"></div></form></div>`);
+    <div class="pl-teste" id="plIaR"></div></form></div>
+  <div class="pl-box" id="plIaCota"><p class="small">Carregando o uso do mês…</p></div>`);
+  cotaIA();
   let c;try{c=await api('GET','/api/admin/ia')}catch(e){$('#plIaSt').innerHTML=`<p class="pl-err">${esc(e.message)}</p>`;return}
   const pinta=c=>{$('#plIaSt').innerHTML=`<div class="pl-row"><span>Situação</span><div>${c.pronta?'<span class="pl-badge ok">ligado</span>':c.configurada?'<span class="pl-badge">desligado</span>':'<span class="pl-badge dg">sem chave</span>'}</div></div>
     <div class="pl-row"><span>Chave</span><div class="pl-key">${c.final?'sk-ant-…'+esc(c.final):'—'} <span class="small">${c.origem==='painel'?'(definida neste painel)':c.origem==='env'?'(do arquivo .env do servidor)':''}</span></div></div>
@@ -706,9 +708,18 @@ async function cfgIA(){corpo(`<h2>Assistente IA</h2><p class="small">O assistent
   $('#plIaX').onclick=()=>askConfirm('Remover a chave da Anthropic guardada neste painel? O assistente para de funcionar (a não ser que haja chave no .env do servidor).',async()=>{
     try{pinta(await api('DELETE','/api/admin/ia/chave'));setMe(await api('GET','/api/auth/me'));toast('Chave removida')}catch(e){toast(e.message)}},'Remover chave')}
 
+async function cotaIA(){const box=$('#plIaCota');let d;try{d=await api('GET','/api/admin/ia/uso')}catch(e){box.innerHTML=`<p class="pl-err">${esc(e.message)}</p>`;return}
+  const us=n=>'US$ '+Number(n).toFixed(2).replace('.',',');
+  box.innerHTML=`<h3>Cota mensal de IA</h3><p class="small">Cada chamada é contabilizada pelos tokens reais. Ao atingir a cota do mês, a pessoa recebe um aviso e o assistente para até o mês virar ou a cota ser ampliada. Campo da pessoa em branco = cota padrão.</p>
+    <form id="plCotaF" class="pl-row"><span>Cota padrão (US$/mês)</span><div><input class="pl-in" id="plCotaP" type="number" min="0" max="10000" step="0.5" value="${d.cotaPadraoUsd}" style="max-width:9em"> <button class="tb" type="submit">Salvar</button></div></form>
+    <div class="pl-scroll"><table class="pl-tbl"><thead><tr><th>Pessoa</th><th>Chamadas</th><th>Gasto no mês</th><th>Cota própria (US$)</th></tr></thead><tbody>${d.usuarios.map(x=>`<tr><td>${esc(x.nome)}<div class="small">${esc(x.login)}</div></td><td>${x.chamadas}</td><td>${us(x.gastoUsd)} de ${us(x.cotaUsd)}</td>
+      <td><input class="pl-in" data-cota="${x.id}" type="number" min="0" max="10000" step="0.5" placeholder="padrão" value="${x.cotaPropria?x.cotaUsd:''}" style="max-width:8em"></td></tr>`).join('')}</tbody></table></div>`;
+  $('#plCotaF').onsubmit=async e=>{e.preventDefault();try{await api('PUT','/api/admin/ia/cota',{cotaUsd:Number($('#plCotaP').value)});toast('Cota padrão salva');cotaIA()}catch(err){toast(err.message)}};
+  box.querySelectorAll('[data-cota]').forEach(i=>i.onchange=async()=>{const v=i.value.trim();try{await api('PUT','/api/admin/ia/cota/'+i.dataset.cota,{cotaUsd:v===''?null:Number(v)});toast('Cota atualizada');cotaIA()}catch(err){toast(err.message)}})}
+
 const EVT={LOGIN:'Entrou',LOGOUT:'Saiu',LOGIN_FALHA:'Senha errada',LOGIN_BLOQUEADO:'Bloqueado',SENHA_ALTERADA:'Trocou a senha',SENHA_REDEFINIDA:'Senha redefinida',USUARIO_CRIADO:'Usuário criado',USUARIO_ALTERADO:'Usuário alterado',
   USUARIO_DESBLOQUEADO:'Desbloqueio',SESSOES_ENCERRADAS:'Sessões encerradas',PERFIL_ALTERADO:'Perfil alterado',DESENHO_CRIADO:'Desenho criado',DESENHO_SOBRESCRITO:'Desenho sobrescrito',DESENHO_DUPLICADO:'Desenho duplicado',
-  DESENHO_NA_LIXEIRA:'Para a lixeira',DESENHO_RESTAURADO:'Restaurado',DESENHO_EXCLUIDO_DEFINITIVO:'Excluído de vez',DESENHO_COMPARTILHADO:'Compartilhado',IA:'Assistente IA',ADMIN_CLI:'Admin pela linha de comando',IA_CONFIGURADA:'IA configurada',IA_CHAVE_REMOVIDA:'Chave da IA removida',DWG_CONVERTIDO:'DWG convertido'};
+  DESENHO_NA_LIXEIRA:'Para a lixeira',DESENHO_RESTAURADO:'Restaurado',DESENHO_EXCLUIDO_DEFINITIVO:'Excluído de vez',DESENHO_COMPARTILHADO:'Compartilhado',IA:'Assistente IA',ADMIN_CLI:'Admin pela linha de comando',IA_CONFIGURADA:'IA configurada',IA_COTA:'Cota de IA alterada',IA_CHAVE_REMOVIDA:'Chave da IA removida',DWG_CONVERTIDO:'DWG convertido'};
 async function cfgAud(ev){corpo(`<h2>Registro de acessos</h2><p class="small">Entradas, falhas de senha, mudanças de usuários e operações em desenhos. Os 300 eventos mais recentes.</p>
   <div class="pl-actions" style="margin:0 0 12px"><select class="pl-in" id="plAuE" style="max-width:260px"><option value="">Todos os eventos</option>${Object.entries(EVT).map(([k,n])=>`<option value="${k}"${ev===k?' selected':''}>${n}</option>`).join('')}</select><button class="tb" id="plAuR">Atualizar</button></div>
   <div class="pl-scroll" id="plAuT"><p class="small" style="padding:10px">Carregando…</p></div>`);

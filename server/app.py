@@ -39,6 +39,7 @@ from cryptography.fernet import Fernet, InvalidToken
 import assistente
 import conversor
 import exporta
+import ia_cota
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from psycopg.rows import dict_row
@@ -182,6 +183,8 @@ async def vida(app):
 
 
 app = FastAPI(title="GPlanSiS|Drawings", lifespan=vida, docs_url=None, redoc_url=None, openapi_url=None)
+ia_cota.configura(db)
+app.add_middleware(ia_cota.LimiteCorpoIA)
 
 
 @app.middleware("http")
@@ -970,19 +973,8 @@ def cliente_ia(chave: str) -> anthropic.AsyncAnthropic:
 
 
 def erro_ia(e: Exception) -> HTTPException:
-    if isinstance(e, anthropic.AuthenticationError):
-        return HTTPException(502, "Chave da Anthropic recusada (inválida ou revogada)")
-    if isinstance(e, anthropic.PermissionDeniedError):
-        return HTTPException(502, "A chave não tem permissão para este modelo")
-    if isinstance(e, anthropic.NotFoundError):
-        return HTTPException(502, "Modelo não encontrado para esta chave — escolha outro em Configurações › Assistente IA")
-    if isinstance(e, anthropic.RateLimitError):
-        return HTTPException(429, "Limite de uso da Anthropic atingido — tente em instantes")
-    if isinstance(e, anthropic.APIStatusError):
-        return HTTPException(502, f"A Anthropic respondeu {e.status_code}: {str(e.message)[:200]}")
-    if isinstance(e, anthropic.APIConnectionError):
-        return HTTPException(502, "Sem conexão com a Anthropic a partir do servidor")
-    return HTTPException(502, f"Falha na IA: {e}")
+    # sem o texto da Anthropic nem detalhes internos (ver ia_cota.erro_generico)
+    return ia_cota.erro_generico(e)
 
 
 class IAReq(BaseModel):
@@ -1000,7 +992,7 @@ def extrai_json(txt: str):
     return json.loads(t[i:j + 1])
 
 
-async def pergunta_ia(cfg: dict, prompt: str, max_tokens: int = 32000) -> tuple[str, str]:
+async def pergunta_ia(cfg: dict, prompt: str, max_tokens: int = 16000, vaga: ia_cota.Vaga | None = None) -> tuple[str, str]:
     """Uma chamada ao Messages API por streaming (o script pode ser longo); devolve (texto, modelo que respondeu)."""
     extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if cfg["modelo"] in COM_FALLBACK else {}
     try:
@@ -1008,12 +1000,20 @@ async def pergunta_ia(cfg: dict, prompt: str, max_tokens: int = 32000) -> tuple[
             model=cfg["modelo"], max_tokens=max_tokens, messages=[{"role": "user", "content": prompt}], **extra,
         ) as st:
             msg = await st.get_final_message()
-    except anthropic.APIError as e:
+    except Exception as e:  # noqa: BLE001
+        if vaga:
+            vaga.erro = ia_cota.tipo_erro(e)
         raise erro_ia(e)
+    if vaga:
+        vaga.resultado(msg)
     if msg.stop_reason == "refusal":
+        if vaga:
+            vaga.erro = "recusa"
         cat = getattr(msg.stop_details, "category", None) if msg.stop_details else None
         raise HTTPException(422, "A IA recusou este pedido" + (f" (categoria: {cat})" if cat else "") + " — reformule a descrição do desenho")
     if msg.stop_reason == "max_tokens":
+        if vaga:
+            vaga.erro = "max_tokens"
         raise HTTPException(422, "A proposta ficou grande demais — peça uma parte do desenho por vez")
     return "".join(b.text for b in msg.content if b.type == "text"), msg.model
 
@@ -1025,11 +1025,21 @@ async def ia_json(body: IAReq, request: Request, u: dict = Depends(exige("ia")))
         raise HTTPException(503, "Assistente IA não configurado — um administrador cola a chave em Configurações › Assistente IA")
     if not cfg["ativo"]:
         raise HTTPException(503, "Assistente IA desligado pelo administrador")
-    txt, modelo = await pergunta_ia(cfg, body.prompt)
+    vaga = ia_cota.Vaga(u, "json")
+    vaga.modelo = cfg["modelo"]
     try:
-        out = extrai_json(txt)
-    except Exception:
-        raise HTTPException(502, "A IA não devolveu um JSON válido — tente reformular")
+        txt, modelo = await pergunta_ia(cfg, body.prompt, vaga=vaga)
+        try:
+            out = extrai_json(txt)
+        except Exception:
+            vaga.erro = "json"
+            raise HTTPException(502, "A IA não devolveu um JSON válido — tente reformular")
+    except BaseException as e:
+        if vaga.erro is None:
+            vaga.erro = ia_cota.tipo_erro(e)
+        raise
+    finally:
+        vaga.fecha()
     with db() as c:
         pedido = body.prompt.rsplit("Pedido:", 1)[-1].strip()
         registra(c.cursor(), "IA", request, u, detalhe=f"[{modelo}] {pedido[:300]}")
@@ -1061,18 +1071,32 @@ async def ia_assistente(body: IAAssist, request: Request, u: dict = Depends(exig
     msgs = [{"role": "user", "content": assistente.conteudo(body.modo, body.pedido, body.contexto, body.anexo)}]
     extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if cfg["modelo"] in COM_FALLBACK else {}
     fila: asyncio.Queue = asyncio.Queue()
+    vaga = ia_cota.Vaga(u, "assistente:" + body.modo)
+    vaga.modelo = cfg["modelo"]
 
     async def corre():
+        st = None
         try:
             async with cliente_ia(cfg["chave"]).beta.messages.stream(
-                model=cfg["modelo"], max_tokens=64000, system=assistente.SISTEMA, messages=msgs,
+                model=cfg["modelo"], max_tokens=32000, system=assistente.SISTEMA, messages=msgs,
                 output_config={"format": {"type": "json_schema", "schema": assistente.ESQUEMA}}, **extra,
             ) as st:
                 async for ev in st:
                     if ev.type == "text":
                         await fila.put(("txt", ev.text))
-                await fila.put(("fim", await st.get_final_message()))
-        except Exception as e:  # noqa: BLE001 — devolvido ao cliente como evento de erro
+                final = await st.get_final_message()
+                vaga.resultado(final)
+                await fila.put(("fim", final))
+        except BaseException as e:  # noqa: BLE001 — devolvido ao cliente como evento de erro
+            if vaga.uso is None and st is not None:
+                # cancelado ou falhou no meio: contabiliza o que já foi gerado
+                try:
+                    vaga.resultado(st.current_message_snapshot)
+                except Exception:  # noqa: BLE001
+                    pass
+            vaga.erro = ia_cota.tipo_erro(e)
+            if isinstance(e, asyncio.CancelledError):
+                raise
             await fila.put(("erro", e))
 
     async def eventos():
@@ -1097,20 +1121,22 @@ async def ia_assistente(body: IAAssist, request: Request, u: dict = Depends(exig
                         yield sse("pulso", {"s": int(ultimo - t0), "chars": nchars, "linhas": nlin, "gerando": True})
                     continue
                 if tipo == "erro":
-                    e = v if isinstance(v, HTTPException) else (erro_ia(v) if isinstance(v, anthropic.APIError) else HTTPException(502, f"Falha na IA: {v}"))
-                    yield sse("erro", {"detail": e.detail})
+                    yield sse("erro", {"detail": erro_ia(v).detail})
                     return
                 msg = v
                 if msg.stop_reason == "refusal":
+                    vaga.erro = "recusa"
                     yield sse("erro", {"detail": "A IA recusou este pedido — reformule a descrição"})
                     return
                 if msg.stop_reason == "max_tokens":
+                    vaga.erro = "max_tokens"
                     yield sse("erro", {"detail": "A resposta ficou grande demais — divida o pedido em partes"})
                     return
                 txt = "".join(b.text for b in msg.content if b.type == "text")
                 try:
                     out = json.loads(txt)
                 except ValueError:
+                    vaga.erro = "json"
                     yield sse("erro", {"detail": "A IA não devolveu uma resposta válida — tente de novo"})
                     return
                 out["_modelo"], out["_s"] = msg.model, int(time.time() - t0)
@@ -1122,6 +1148,13 @@ async def ia_assistente(body: IAAssist, request: Request, u: dict = Depends(exig
         finally:
             if not tarefa.done():
                 tarefa.cancel()
+                try:
+                    await tarefa          # deixa o corre() anotar o uso parcial antes de contabilizar
+                except BaseException:  # noqa: BLE001
+                    pass
+            if vaga.uso is None and vaga.erro is None:
+                vaga.erro = "interrompido"
+            vaga.fecha()
 
     return StreamingResponse(eventos(), media_type="text/event-stream", headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
@@ -1214,8 +1247,12 @@ async def testa_ia(body: IATeste, u: dict = Depends(exige_admin)):
             model=modelo, max_tokens=256, messages=[{"role": "user", "content": "Responda apenas: OK"}])
     except anthropic.APIError as e:
         raise erro_ia(e)
+    ia_cota.registra_uso(u["id"], "teste", msg.model, msg.usage, True, None, int((time.time() - t0) * 1000))
     txt = "".join(b.text for b in msg.content if b.type == "text").strip()
     return {"ok": True, "modelo": msg.model, "resposta": txt[:60], "ms": int((time.time() - t0) * 1000), "modelos": disponiveis}
+
+
+app.include_router(ia_cota.rotas(exige_admin, ativo_ok, registra))
 
 
 # ---------------------------------------------------------------- arquivos CAD

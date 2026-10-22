@@ -128,3 +128,22 @@ create table if not exists sso_nonce (
   expira_em timestamptz not null
 );
 
+-- Cota e uso da IA (modelo do GPlanSiS|Studio): cota mensal em US$ por pessoa (null = padrão global
+-- em config['ia'].cota_usd) e registro de cada chamada com os tokens reais e o custo.
+alter table usuarios add column if not exists ia_cota numeric(10,2);
+create table if not exists ia_uso (
+  id            bigserial primary key,
+  ts            timestamptz not null default now(),
+  usuario_id    bigint references usuarios(id) on delete set null,
+  recurso       text not null,
+  modelo        text,
+  input_tokens  int not null default 0,
+  output_tokens int not null default 0,
+  cache_read    int not null default 0,
+  cache_write   int not null default 0,
+  custo_usd     numeric(12,6) not null default 0,
+  ok            boolean not null,
+  erro          text,
+  ms            int
+);
+create index if not exists ia_uso_usuario_ts_ix on ia_uso (usuario_id, ts);
