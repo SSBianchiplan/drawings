@@ -8,7 +8,7 @@ Obrigado pelo interesse! Este guia mostra como propor mudanças sem atrito.
 - Para mudanças grandes (novo módulo, mudança no formato do desenho, nova rota da API), abra uma issue **antes** do código e descreva a ideia.
 - Falhas de segurança **não** vão em issue pública: veja [SECURITY.md](SECURITY.md).
 - Ao participar você concorda com o [Código de Conduta](CODE_OF_CONDUCT.md).
-- A licença do projeto ainda está **a definir pela GPlanSiS**. Ao enviar um pull request, você concorda que a sua contribuição poderá ser distribuída sob a licença que vier a ser adotada.
+- O projeto é distribuído sob a [licença MIT](LICENSE). Ao enviar uma contribuição, você declara que o código é seu (ou que tem direito de enviá-lo) e concorda que ela seja distribuída sob a licença MIT.
 
 ## Ambiente de desenvolvimento
 

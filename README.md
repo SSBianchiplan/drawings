@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://drawings.gplansis.com"><img alt="no ar" src="https://img.shields.io/badge/no%20ar-drawings.gplansis.com-f6a709?style=flat-square&labelColor=15181b"></a>
-  <img alt="licença a definir" src="https://img.shields.io/badge/licen%C3%A7a-a%20definir-8e979d?style=flat-square&labelColor=15181b">
+  <a href="LICENSE"><img alt="licença MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-2ea44f?style=flat-square"><">
   <img alt="FastAPI" src="https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&labelColor=15181b">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/banco-PostgreSQL-336791?style=flat-square&labelColor=15181b">
   <img alt="three.js" src="https://img.shields.io/badge/3D-three.js-e3e6e8?style=flat-square&labelColor=15181b">
@@ -248,7 +248,7 @@ Leia o [guia de contribuição](CONTRIBUTING.md), abra uma [issue](../../issues/
 
 ## Licença
 
-**Licença: a definir pela GPlanSiS.** Até a definição, nenhuma licença de uso, cópia ou redistribuição é concedida além do que a lei permite.
+Código próprio sob a **[licença MIT](LICENSE)** — Copyright (c) 2026 GPlanSiS.
 
 Componentes de terceiros mantêm as próprias licenças:
 
