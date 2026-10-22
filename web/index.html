@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GPlanSiS|Drawings</title>
+<meta name="description" content="CAD 2D estilo AutoCAD com construção em 3D — GPlanSiS|Drawings">
+<meta name="theme-color" content="#15181b">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="icon" href="/icones/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="/icones/apple-touch-icon.png" sizes="180x180">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="application-name" content="Drawings">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drawings">
+<meta name="format-detection" content="telephone=no">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/cad.css?v=__V__">
+<link rel="stylesheet" href="/plataforma.css?v=__V__">
+<link rel="stylesheet" href="/celular.css?v=__V__">
+<script src="/tema.js?v=__V__"></script>
+</head>
+<body>
+
+<!-- ============ plataforma: acesso ============ -->
+<div id="plGate" class="pl-gate" aria-live="polite">
+  <div class="pl-gate-card">
+    <div class="pl-brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="6" fill="var(--accent)"/><path d="M8 22V10h7a5 5 0 010 10h-3M18 22l6-12" stroke="var(--accent-ink)" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>GPlanSiS</b><span>|Drawings</span></div></div>
+    <p class="pl-gate-sub" id="plGateSub">CAD 2D estilo AutoCAD com construção em 3D</p>
+    <form id="plLogin" class="pl-form" autocomplete="on">
+      <label>E-mail<input id="plLgUser" type="email" autocomplete="username" required inputmode="email" autocapitalize="none" spellcheck="false"></label>
+      <label>Senha<input id="plLgPass" type="password" autocomplete="current-password" required></label>
+      <div class="pl-err" id="plLgErr"></div>
+      <button class="tb primary pl-wide" type="submit" id="plLgBtn">Entrar</button>
+    </form>
+    <form id="plTroca" class="pl-form" hidden>
+      <p class="small" style="margin:0 0 4px">Primeiro acesso: defina uma senha pessoal. Mínimo de 10 caracteres, com maiúsculas, minúsculas e número.</p>
+      <label>Senha temporária<input id="plTrAtual" type="password" autocomplete="current-password" required></label>
+      <label>Nova senha<input id="plTrNova" type="password" autocomplete="new-password" required minlength="10"></label>
+      <label>Repita a nova senha<input id="plTrNova2" type="password" autocomplete="new-password" required minlength="10"></label>
+      <div class="pl-err" id="plTrErr"></div>
+      <button class="tb primary pl-wide" type="submit">Salvar senha e entrar</button>
+      <button class="tb pl-wide" type="button" id="plTrSair">Sair</button>
+    </form>
+    <div id="plGateLoad" class="small">Verificando sessão…</div>
+  </div>
+  <p class="pl-gate-foot small">Acesso restrito a usuários cadastrados. Peça seu acesso ao administrador.</p>
+</div>
+<header id="top">
+  <div id="brand"><b>GPlanSiS</b><span>|Drawings</span></div>
+  <button id="fname" title="Renomear desenho">Sem título</button>
+  <span id="plStatus" class="pl-status" role="status"></span>
+  <button id="plDocsChip" class="pl-docschip" hidden title="Documento no GPlanSiS|Docs"></button>
+  <div id="topbtns">
+    <button class="tb" data-cmd="DEMOS" title="Escolher uma demonstração"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M7 5l12 7-12 7z"/></svg><span class="lbl">Demonstrações</span></button>
+    <button class="tb" data-cmd="IA" title="Assistente de desenho"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8z"/></svg><span class="lbl">IA</span></button>
+    <button class="tb" data-cmd="PLOT" title="Plotar folha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1"/><path d="M7 14h10v7H7z"/></svg><span class="lbl">Plotar</span></button>
+    <button class="tb primary" data-cmd="3D" title="Construir em 3D"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg><span class="lbl">Construir em 3D</span></button>
+    <button class="tb" id="plDocsLink" hidden title="Abrir o GPlanSiS|Docs já conectado com a sua conta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg><span class="lbl">Docs</span></button>
+    <button class="tb" id="plDocsBtn" title="Meus desenhos no servidor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><span class="lbl">Desenhos</span></button>
+    <button class="tb" id="menuBtn" title="Arquivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="lbl">Arquivo</span></button>
+    <button id="plUserBtn" class="pl-userbtn" title="Conta e configurações" aria-haspopup="menu"><span class="pl-av" id="plTopAv"></span></button>
+  </div>
+</header>
+<nav id="ribbon">
+  <div id="tabs" role="tablist"></div>
+  <div id="tools"></div>
+</nav>
+<main id="main">
+  <canvas id="cv"></canvas>
+  <div id="dyn"></div>
+  <div id="viewbtns">
+    <button data-cmd="ZOOM E" title="Zoom extensão"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button data-act="zin" title="Aproximar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M11 8v6M8 11h6M16 16l4 4"/></svg></button>
+    <button data-act="zout" title="Afastar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M8 11h6M16 16l4 4"/></svg></button>
+    <button data-act="pan" id="panBtn" title="Pan (mão)"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>
+    <button data-act="layers" title="Camadas"><svg viewBox="0 0 24 24"><path d="M12 4l9 5-9 5-9-5z"/><path d="M3 14l9 5 9-5"/></svg></button>
+    <button data-act="props" title="Propriedades"><svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+    <button data-act="theme" title="Tema claro/escuro"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 000 16z" fill="currentColor"/></svg></button>
+  </div>
+  <aside class="drawer" id="layersP" aria-label="Camadas">
+    <div class="dh">Camadas<button class="tb" id="lnew" style="margin-left:10px;padding:2px 8px;min-height:24px">Nova</button><button class="x" data-close="layersP" aria-label="Fechar">×</button></div>
+    <div class="db" id="layersList"></div>
+  </aside>
+  <aside class="drawer" id="blocksP" aria-label="Blocos">
+    <div class="dh">Biblioteca de blocos<button class="x" data-close="blocksP" aria-label="Fechar">×</button></div>
+    <div class="db"><div class="small" style="margin-bottom:6px">Toque num bloco para inserir. Portas e janelas abrem vão nas paredes e no 3D.</div><div class="blk" id="blkList"></div></div>
+  </aside>
+  <aside class="drawer" id="propsP" aria-label="Propriedades">
+    <div class="dh">Propriedades<button class="x" data-close="propsP" aria-label="Fechar">×</button></div>
+    <div class="db" id="propsBody"></div>
+  </aside>
+  <aside class="drawer" id="stepsP" aria-live="polite"><b>Ordem do desenhista</b><ol id="stepsList"></ol></aside>
+</main>
+<section id="cmdwrap" style="position:relative">
+  <div id="ac" role="listbox"></div>
+  <div id="hist" aria-live="polite"></div>
+  <div id="cmdrow"><span id="prompt">Comando:</span><div id="opts"></div><input id="cmd" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Digite um comando (L, PL, C, TR…) ou coordenada" aria-label="Linha de comando"></div>
+</section>
+<footer id="status">
+  <span id="coords">0, 0</span>
+  <button class="st" data-tg="grid" title="Grade (F7)">GRADE</button>
+  <button class="st" data-tg="snap" title="Snap à grade (F9)">SNAP</button>
+  <button class="st" data-tg="ortho" title="Modo orto (F8)">ORTO</button>
+  <button class="st" data-tg="polar" title="Rastreamento polar (F10)">POLAR</button>
+  <button class="st" data-tg="osnap" title="Snap ao objeto (F3)">OSNAP</button>
+  <button class="st" data-tg="otrack" title="Rastreamento de snap (F11)">OTRACK</button>
+  <button class="st" data-tg="dyn" title="Entrada dinâmica (F12)">DIN</button>
+  <button class="st" data-tg="lwt" title="Mostrar espessura de linha">LWT</button>
+  <button class="st" data-cmd="DSETTINGS" title="Configurações de desenho">⚙</button>
+  <select id="clayerSel" title="Camada atual" aria-label="Camada atual"></select>
+</footer>
+
+<div class="modal" id="mdl" role="dialog" aria-modal="true"><div class="mbox"><div class="dh" id="mdlT"></div><div class="db" id="mdlB"></div><div class="mfoot" id="mdlF"></div></div></div>
+
+<div id="v3d">
+  <header><b>Modelo 3D</b>
+    <button class="tb" data-v="iso">Isométrica</button><button class="tb" data-v="top">Topo</button><button class="tb" data-v="front">Frontal</button>
+    <button class="tb" data-v="rise">Erguer paredes</button><button class="tb" data-v="ceil" id="ceilBtn">Laje: não</button><button class="tb" data-v="png">PNG</button>
+    <button class="tb primary" data-v="close" style="margin-left:auto">Voltar à planta</button>
+  </header>
+  <div style="position:relative;flex:1;display:flex"><canvas id="c3d"></canvas><div id="v3dmsg"></div></div>
+</div>
+<div id="toast" role="status"></div>
+<input type="file" id="fileIn" accept=".dwg,.dxf,.json,.gpd" hidden>
+
+<!-- ============ plataforma: menu da conta ============ -->
+<div id="plMenu" class="pl-menu" role="menu" hidden></div>
+
+<!-- ============ plataforma: desenhos no servidor ============ -->
+<section id="plDocs" class="pl-sheet" aria-label="Desenhos" hidden>
+  <header class="pl-sheet-h">
+    <b>Desenhos</b>
+    <nav class="pl-seg" id="plDocsTabs" role="tablist"></nav>
+    <input id="plDocsQ" class="pl-search" type="search" placeholder="Buscar por nome" aria-label="Buscar desenhos">
+    <button class="tb" id="plDocsImp" title="Importar DWG, DXF ou JSON para a biblioteca (vários de uma vez)">Importar CAD</button>
+    <button class="tb primary" id="plDocsNew">Novo desenho</button>
+    <button class="tb" data-pl-close="plDocs" aria-label="Fechar">Fechar</button>
+  </header>
+  <div class="pl-sheet-b"><div id="plDocsGrid" class="pl-grid"></div></div>
+</section>
+
+<!-- ============ plataforma: configurações ============ -->
+<section id="plCfg" class="pl-sheet" aria-label="Configurações" hidden>
+  <header class="pl-sheet-h">
+    <b>Configurações</b>
+    <span class="small" id="plCfgWho"></span>
+    <button class="tb" data-pl-close="plCfg" style="margin-left:auto">Voltar ao desenho</button>
+  </header>
+  <div class="pl-cfg">
+    <nav id="plCfgNav" class="pl-cfg-nav" role="tablist"></nav>
+    <div id="plCfgBody" class="pl-cfg-body"></div>
+  </div>
+</section>
+<input type="file" id="plImpIn" accept=".dwg,.dxf,.json,.gpd" multiple hidden>
+<div id="plDrop" class="pl-drop" hidden><div><b>Solte para importar</b><span>DWG · DXF · JSON</span></div></div>
+<input type="file" id="plAvatarIn" accept="image/png,image/jpeg,image/webp" hidden>
+<script src="/cad.js?v=__V__"></script>
+<script src="/cadimport.js?v=__V__"></script>
+<script src="/cadexport.js?v=__V__"></script>
+<script src="/plataforma.js?v=__V__"></script>
+<script src="/pwa.js?v=__V__"></script>
+</body>
+</html>

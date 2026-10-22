@@ -1,0 +1,70 @@
+/* GPlanSiS|Drawings — ajustes de celular/tablet (carregado depois de cad.css e plataforma.css).
+   Só media queries: no computador com mouse e tela larga nada aqui se aplica (exceto safe-area, que vale 0). */
+
+/* aparelhos com entalhe (paisagem): nada fica sob a câmera */
+body{padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+
+/* faixa de ferramentas recolhida (toque de novo na aba atual — ver pwa.js) */
+body.rib-min #tools{display:none}
+
+/* ---------- toque: alvos de pelo menos 40 px e campos sem zoom automático ---------- */
+@media (pointer:coarse), (max-width:640px), (max-height:500px){
+  .tb{min-height:40px;min-width:40px;justify-content:center}
+  .pl-userbtn{min-height:40px;min-width:40px;justify-content:center;padding:0}
+  #fname{min-height:40px}
+  .tab{min-height:40px;padding:6px 12px}
+  .tool{min-height:44px}
+  #viewbtns button{width:40px;height:40px}
+  .st{min-height:40px;min-width:40px;padding:3px 9px}
+  #clayerSel{min-height:40px}
+  #opts button{min-height:40px;padding:2px 10px}
+  .dh .x{min-width:40px;min-height:40px}
+  .pl-docschip{min-height:40px}
+  /* iOS amplia a página quando o campo tem fonte menor que 16 px */
+  input:not([type=checkbox]):not([type=radio]):not([type=color]):not([type=range]),select,textarea{font-size:16px!important}
+  .modal{padding:6px}
+}
+
+/* ---------- celular em pé ---------- */
+@media (max-width:640px){
+  #top{gap:4px;padding:4px 6px}
+  #topbtns{min-width:0;flex-shrink:1;overflow-x:auto;scrollbar-width:none;gap:3px;-webkit-overflow-scrolling:touch}
+  #topbtns::-webkit-scrollbar{display:none}
+  #topbtns .tb{padding:4px 8px;flex:none}
+  #fname{flex:1 1 auto;min-width:2.5em;max-width:none;text-align:left}
+  #coords{min-width:0;font-size:11px}
+  #status{gap:2px}
+}
+@media (max-width:520px){
+  #brand{display:none}
+}
+
+/* ---------- celular deitado (pouca altura): mais área de desenho ---------- */
+@media (max-height:500px) and (orientation:landscape){
+  .tb .lbl{display:none}
+  #top{min-height:0;padding:2px 8px;gap:6px}
+  #topbtns .tb{padding:4px 8px}
+  .tab{padding:4px 11px}
+  #tools{padding:2px 6px}
+  .tool{width:44px;padding:0;justify-content:center}
+  .tool span{display:none}
+  .sep{margin:6px 3px}
+  #hist{max-height:1.45em}
+  /* linha de comando e barra de estado lado a lado */
+  body{grid-template-columns:minmax(0,1fr) minmax(0,auto);grid-template-rows:auto auto 1fr auto}
+  #top,#ribbon,#main{grid-column:1/-1}
+  #cmdwrap{grid-column:1;grid-row:4}
+  #status{grid-column:2;grid-row:4;max-width:46vw;border-left:1px solid var(--line)}
+  #coords{min-width:0}
+  /* botões de vista em duas colunas (4 linhas de 40 px cabem na altura útil) */
+  #viewbtns{display:grid;grid-auto-flow:column;grid-template-rows:repeat(4,40px);max-height:calc(100% - 16px);overflow-y:auto;scrollbar-width:none}
+  #viewbtns button{flex:none}
+  #viewbtns::-webkit-scrollbar{display:none}
+}
+
+/* o chip do Docs vazio aparecia como uma pílula sem conteúdo (display do CSS vencia o atributo hidden) */
+.pl-docschip[hidden]{display:none}
+/* celular em pé: o avatar da conta fica sempre visível no fim da barra rolável */
+@media (max-width:640px){
+  #topbtns .pl-userbtn{position:sticky;right:0;background:var(--panel);padding-left:4px}
+}

@@ -1,0 +1,41 @@
+# GPlanSiS|Drawings — drawings.gplansis.com (bloco próprio; não toca nos outros sites).
+# Estáticos de /opt/drawings/web; /api/* → uvicorn 127.0.0.1:8930.
+drawings.gplansis.com {
+	import seguranca_hub
+	# o assistente responde em streaming (SSE): sem compressão, para o progresso chegar na hora
+	@comprime not path /api/ia/assistente
+	encode @comprime gzip zstd
+	request_body {
+		max_size 40MB
+	}
+	header {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+		X-Frame-Options DENY
+		-Server
+	}
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8930 {
+			header_up X-Forwarded-Proto https
+			transport http {
+				response_header_timeout 300s
+			}
+		}
+	}
+	handle {
+		root * /opt/drawings/web
+		@naocache path / /index.html
+		header @naocache Cache-Control "no-cache"
+		@versionado path /cad.js /cadimport.js /cadexport.js /cad.css /plataforma.js /plataforma.css /tema.js
+		header @versionado Cache-Control "public, max-age=31536000, immutable"
+		@longo path /vendor/* /icon.svg
+		# PWA: o Caddy não conhece .webmanifest (sairia sem Content-Type, e com nosniff)
+		@manifesto path /manifest.webmanifest
+		header @manifesto Content-Type "application/manifest+json"
+		header @longo Cache-Control "public, max-age=604800"
+		try_files {path} /index.html
+		file_server
+	}
+	log {
+		output file /var/log/caddy/drawings.log
+	}
+}

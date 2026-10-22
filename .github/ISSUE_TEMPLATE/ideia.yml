@@ -1,0 +1,29 @@
+name: Sugerir uma ideia
+description: Um comando, ferramenta, símbolo ou recurso novo
+title: "[Ideia] "
+labels: ["ideia"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve
+      description: Conte o caso de uso. Ex.: "No AutoCAD eu uso o comando X para..."
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como você imagina a solução
+      description: Comando, atalho, norma de referência (ISA, IEC, ISO, NBR), exemplo de desenho.
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas que você considerou
+  - type: checkboxes
+    id: ajuda
+    attributes:
+      label: Quer ajudar a implementar?
+      options:
+        - label: Sim, posso enviar um pull request

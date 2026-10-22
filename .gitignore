@@ -1,0 +1,49 @@
+# segredos e configuração local
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node / ferramentas
+node_modules/
+
+# dados, bancos, uploads e logs
+dados/
+data/
+uploads/
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.log
+logs/
+
+# backups de publicação
+*.bak
+*.bak-*
+*-bak-*
+server.bak-*/
+web.bak-*/
+
+# chaves e certificados
+*.pem
+*.key
+*.crt
+*.p12
+
+# arquivos de desenho de teste (podem conter projetos de clientes)
+*.dwg
+*.dxf
+!exemplos/**/*.dxf
+
+# sistema / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

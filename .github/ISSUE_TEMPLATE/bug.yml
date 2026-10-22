@@ -1,0 +1,52 @@
+name: Relatar um bug
+description: Algo não funciona como deveria
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Obrigado por relatar! Falhas de segurança não vão aqui: veja SECURITY.md. Não anexe desenhos de clientes, senhas nem dados reais."
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu
+      description: Descreva o problema.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Rode a demonstração "Apartamento 92 m²"
+        2. Digite TR e selecione a parede...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que era esperado
+    validations:
+      required: true
+  - type: dropdown
+    id: modulo
+    attributes:
+      label: Módulo
+      options: [Desenho / edição, Cotas / anotação, Paramétrico, Industrial (P&ID / elétrico / mecânico), Modelo 3D, Importar DXF / DWG, Exportar / plotar / PDF, Login / usuários / permissões, Biblioteca de desenhos / versões, Assistente de IA, Integração com o Docs, Celular / PWA, Arquivo único (standalone), Outro]
+    validations:
+      required: true
+  - type: input
+    id: ambiente
+    attributes:
+      label: Navegador e sistema
+      placeholder: "Chrome 140 no Windows 11 / Safari no iPad"
+  - type: dropdown
+    id: edicao
+    attributes:
+      label: Onde aconteceu
+      options: [drawings.gplansis.com, Instalação própria (servidor), Arquivo único offline, Arquivo único online]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Capturas de tela, arquivo DXF de exemplo (sem dados de cliente) ou mensagens do console
