@@ -29,6 +29,8 @@ create table if not exists usuarios (
   constraint avatar_limite check (avatar is null or octet_length(avatar) <= 400000)
 );
 create unique index if not exists usuarios_login_uk on usuarios (lower(login));
+-- última tentativa errada: o contador de falhas zera quando ela fica antiga (antes, nunca zerava)
+alter table usuarios add column if not exists ultima_falha timestamptz;
 
 create table if not exists sessoes (
   token_hash  text primary key,
@@ -125,3 +127,4 @@ create table if not exists sso_nonce (
   nonce     text primary key,
   expira_em timestamptz not null
 );
+

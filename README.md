@@ -126,7 +126,7 @@ flowchart LR
 
 | Camada | Tecnologias |
 |---|---|
-| Front | JavaScript sem framework, Canvas 2D, [three.js](https://threejs.org/) r128, [JSZip](https://stuk.github.io/jszip/) 3.10.1, [jsPDF](https://github.com/parallax/jsPDF) 2.5.1, [svg2pdf.js](https://github.com/yWorks/svg2pdf.js), [polygon-clipping](https://github.com/mfogel/polygon-clipping) 0.15.7, fontes IBM Plex |
+| Front | JavaScript sem framework, Canvas 2D, [three.js](https://threejs.org/) r128, [JSZip](https://stuk.github.io/jszip/) 3.10.1, [jsPDF](https://github.com/parallax/jsPDF) 4.2.1, [svg2pdf.js](https://github.com/yWorks/svg2pdf.js), [polygon-clipping](https://github.com/mfogel/polygon-clipping) 0.15.7, fontes IBM Plex |
 | API | Python 3, [FastAPI](https://fastapi.tiangolo.com/), uvicorn, psycopg 3 + pool, cryptography (Fernet), [ezdxf](https://ezdxf.mozman.at/), httpx, SDK `anthropic` |
 | Dados | PostgreSQL |
 | Conversão DWG | [LibreDWG](https://www.gnu.org/software/libredwg/) 0.14 (`dwg2dxf`, `dxf2dwg`) — opcional |
@@ -222,6 +222,8 @@ Todas lidas por `server/app.py`. Modelo com valores fictícios em [`.env.example
 | `ANTHROPIC_API_KEY` | Chave da IA de reserva (opcional) |
 | `DRAWINGS_IA_MODELO` | Modelo padrão do assistente |
 | `DRAWINGS_DWG2DXF`, `DRAWINGS_DXF2DWG` | Caminhos dos binários do LibreDWG |
+| `DRAWINGS_CONV_SOCKET` | Socket do serviço de conversão isolado (`deploy/drawings-conv.*`); vazio = converte no próprio processo, com ambiente vazio, diretório temporário e limites |
+| `DRAWINGS_CONV_TIMEOUT_S`, `DRAWINGS_CONV_CPU_S`, `DRAWINGS_CONV_MEM_MB`, `DRAWINGS_CONV_FSIZE_MB` | Prazo e limites de recurso de cada conversão (padrão 120 s, 110 s de CPU, 1536 MB, 400 MB) |
 | `DRAWINGS_URL` | Endereço público do Drawings (links enviados ao Docs) |
 | `DRAWINGS_DOCS_SEGREDO`, `DRAWINGS_DOCS_URL`, `DRAWINGS_DOCS_API` | Integração com o GPlanSiS\|Docs (opcional) |
 

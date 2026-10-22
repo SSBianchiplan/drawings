@@ -1,0 +1,18 @@
+# GPlanSiS|Drawings — socket do conversor DWG isolado (LibreDWG).
+# A API (usuário drawings) conecta aqui; cada conexão sobe uma instância de drawings-conv@.service,
+# que roda com usuário dinâmico, sem rede e sem acesso a /opt/drawings (nem ao .env).
+# Ligar: DRAWINGS_CONV_SOCKET=/run/drawings-conv.sock no /opt/drawings/.env e reiniciar a API.
+[Unit]
+Description=GPlanSiS|Drawings — socket do conversor DWG isolado
+
+[Socket]
+ListenStream=/run/drawings-conv.sock
+SocketUser=drawings
+SocketGroup=drawings
+SocketMode=0600
+Accept=yes
+# a API já serializa (uma conversão por vez); 2 dá folga para um pedido que está terminando
+MaxConnections=2
+
+[Install]
+WantedBy=sockets.target

@@ -18,7 +18,11 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 const fmt=(v,d=0)=>{if(!isFinite(v))return '—';const s=(Math.round(v*10**d)/10**d).toFixed(d);return s.replace('.',',').replace(/^-0(,0+)?$/,'0$1')};
 const fmtN=(v,d=2)=>Number(v.toFixed(d)).toString();
 const fmtA=a=>fmt(a/1e6,2)+' m²';
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// campos numéricos do documento vão para HTML/SVG sempre como número (um .json ou desenho compartilhado pode trazer texto no lugar)
+const num0=v=>{v=+v;return Number.isFinite(v)?v:0};
+// cor vinda do documento: só #rgb/#rrggbb(aa); qualquer outra coisa vira a cor padrão
+const safeCol=c=>typeof c==='string'&&/^#[0-9a-fA-F]{3,8}$/.test(c)?c:null;
 /* afim: x'=a x + c y + e ; y'= b x + d y + f */
 const MI={a:1,b:0,c:0,d:1,e:0,f:0};
 const Map_=(M,p)=>P(M.a*p.x+M.c*p.y+M.e,M.b*p.x+M.d*p.y+M.f);
@@ -330,7 +334,7 @@ function colOf(c,layerName){
   if(c==='BL'||c==null){const L=layerOf(layerName);return aci(L.color)}
   if(typeof c==='string'&&c.startsWith('L:'))return aci(layerOf(c.slice(2)).color);
   if(c==='BB')return aci(7);return aci(c)}
-function aci(c){if(typeof c==='string'&&c[0]==='#')return c;if(c===7||c==='7')return COL['model-fg'];if(!COL.dark&&ACI_L[c])return ACI_L[c];return ACI[c]||COL['model-fg']}
+function aci(c){if(typeof c==='string'&&c[0]==='#')return safeCol(c)||COL['model-fg'];if(c===7||c==='7')return COL['model-fg'];if(!COL.dark&&ACI_L[c])return ACI_L[c];return ACI[c]||COL['model-fg']}
 function ltOf(e){return e.lt==='BL'||!e.lt?layerOf(e.layer).lt:e.lt}
 function lwOf(e){return e.lw==null||e.lw<0?layerOf(e.layer).lw:e.lw}
 function stroke(e,ov){ // configura contexto
@@ -1105,7 +1109,7 @@ function renderLayers(){const box=$('#layersList');const cnt={};doc.ents.forEach
   <button class="ib${l.frozen?'':' off'}" data-i="${i}" data-a="frz" title="Congelada"><svg viewBox="0 0 24 24">${IC.freeze}</svg></button>
   <button class="ib${l.locked?'':' off'}" data-i="${i}" data-a="lck" title="Travada"><svg viewBox="0 0 24 24">${IC.lock}</svg></button>
   <button class="ib" data-i="${i}" data-a="del" title="Excluir camada vazia" ${cnt[l.name]||l.name==='0'||l.name===doc.clayer?'disabled style="opacity:.25"':''}>×</button></div>
-  <div class="lsub"><select data-i="${i}" data-a="col" aria-label="Cor" style="border-left:10px solid ${aci(l.color)}">${aciOptions(l.color)}</select><select data-i="${i}" data-a="lt" aria-label="Tipo de linha">${ltOptions(l.lt)}</select><select data-i="${i}" data-a="lw" aria-label="Espessura">${lwOptions(l.lw)}</select><span class="small" style="align-self:center">${cnt[l.name]||0} obj.</span></div>`).join('')}
+  <div class="lsub"><select data-i="${i}" data-a="col" aria-label="Cor" style="border-left:10px solid ${esc(aci(l.color))}">${aciOptions(l.color)}</select><select data-i="${i}" data-a="lt" aria-label="Tipo de linha">${ltOptions(l.lt)}</select><select data-i="${i}" data-a="lw" aria-label="Espessura">${lwOptions(l.lw)}</select><span class="small" style="align-self:center">${cnt[l.name]||0} obj.</span></div>`).join('')}
 $('#layersList').addEventListener('click',e=>{const t=e.target.closest('[data-a]');if(!t||t.tagName==='SELECT'||t.classList.contains('nm'))return;const L=doc.layers[+t.dataset.i];const a=t.dataset.a;
   withUndo(()=>{if(a==='cur'){doc.clayer=L.name;L.on=true;L.frozen=false}if(a==='on'&&L.name!==doc.clayer)L.on=!L.on;if(a==='frz'&&L.name!==doc.clayer)L.frozen=!L.frozen;if(a==='lck')L.locked=!L.locked;if(a==='del')doc.layers.splice(+t.dataset.i,1)})});
 $('#layersList').addEventListener('change',e=>{const t=e.target;const L=doc.layers[+t.dataset.i];if(!L)return;const a=t.dataset.a;
@@ -1114,18 +1118,18 @@ $('#lnew').onclick=()=>{withUndo(()=>{let i=1;while(doc.layers.some(l=>l.name===
 function renderProps(){const box=$('#propsBody');const s=[...SEL].map(entById).filter(Boolean);
   if(!s.length){box.innerHTML=`<div class="small">Nada selecionado. Toque num objeto ou arraste uma janela.</div><div class="ph">Desenho</div>
    <div class="field"><label>Objetos</label><input readonly value="${doc.ents.length}"></div><div class="field"><label>Camada atual</label><input readonly value="${esc(doc.clayer)}"></div>
-   <div class="field"><label>Escala de linha</label><input type="number" data-g="ltscale" value="${doc.ltscale}"></div><div class="field"><label>Espessura 3D</label><input type="number" data-g="thickness" value="${doc.thickness}"></div>
-   <div class="field"><label>Altura de texto</label><input type="number" data-g="textH" value="${doc.textH}"></div>`;return}
+   <div class="field"><label>Escala de linha</label><input type="number" data-g="ltscale" value="${num0(doc.ltscale)}"></div><div class="field"><label>Espessura 3D</label><input type="number" data-g="thickness" value="${num0(doc.thickness)}"></div>
+   <div class="field"><label>Altura de texto</label><input type="number" data-g="textH" value="${num0(doc.textH)}"></div>`;return}
   const e=s[0],multi=s.length>1,same=k=>s.every(x=>JSON.stringify(x[k])===JSON.stringify(e[k]));
   const T={line:'Linha',pline:'Polilinha',circle:'Círculo',arc:'Arco',ellipse:'Elipse',spline:'Spline',text:'Texto',point:'Ponto',xline:'Construção',hatch:'Hachura',dim:'Cota',leader:'Chamada',insert:'Bloco',wall:'Parede'};
-  let h=`<div class="ph">${multi?s.length+' objetos':T[e.type]}</div>
+  let h=`<div class="ph">${multi?s.length+' objetos':esc(T[e.type]||e.type)}</div>
   <div class="field"><label>Camada</label><select data-p="layer">${doc.layers.map(l=>`<option${same('layer')&&l.name===e.layer?' selected':''}>${esc(l.name)}</option>`).join('')}${same('layer')?'':'<option selected disabled>*vários*</option>'}</select></div>
   <div class="field"><label>Cor</label><select data-p="color">${aciOptions(same('color')?e.color:'',true)}</select></div>
   <div class="field"><label>Tipo de linha</label><select data-p="lt">${ltOptions(same('lt')?e.lt:'',true)}</select></div>
   <div class="field"><label>Espessura linha</label><select data-p="lw">${lwOptions(same('lw')?e.lw:-2,true)}</select></div>
-  <div class="field"><label>Escala do tipo</label><input type="number" step="0.1" data-p="lts" value="${e.lts||1}"></div>
-  <div class="field"><label>Espessura 3D</label><input type="number" data-p="th" value="${same('th')?(e.th||0):''}"></div>
-  <div class="field"><label>Elevação</label><input type="number" data-p="el" value="${same('el')?(e.el||0):''}"></div>`;
+  <div class="field"><label>Escala do tipo</label><input type="number" step="0.1" data-p="lts" value="${num0(e.lts||1)}"></div>
+  <div class="field"><label>Espessura 3D</label><input type="number" data-p="th" value="${same('th')?num0(e.th||0):''}"></div>
+  <div class="field"><label>Elevação</label><input type="number" data-p="el" value="${same('el')?num0(e.el||0):''}"></div>`;
   if(!multi){const F=(l,k,v,ro,step='any')=>`<div class="field"><label>${l}</label><input ${ro?'readonly':''} type="${typeof v==='number'?'number':'text'}" step="${step}" data-g2="${k}" value="${esc(typeof v==='number'?+v.toFixed(3):v)}"></div>`;
     h+='<div class="ph">Geometria</div>';
     if(e.type==='line'||e.type==='wall'){h+=F('Início X','a.x',e.a.x)+F('Início Y','a.y',e.a.y)+F('Fim X','b.x',e.b.x)+F('Fim Y','b.y',e.b.y)+F('Comprimento','',dist(e.a,e.b),true)+F('Ângulo','',normA(ang(e.a,e.b))*R2D,true)}
@@ -1266,13 +1270,13 @@ function dlgSettings(focus){const O=ST.os,D=doc.dim,W=doc.wall;
   modal('Configurações de desenho',`<div class="cols2"><div><div class="ph">Snap ao objeto (F3)</div>${ck('end','Extremidade')}${ck('mid','Ponto médio')}${ck('cen','Centro')}${ck('qua','Quadrante')}${ck('int','Interseção')}${ck('per','Perpendicular')}${ck('tan','Tangente')}${ck('nea','Mais próximo')}${ck('nod','Nó')}${ck('ins','Inserção')}</div>
   <div><div class="ph">Rastreamento e grade</div>
   <div class="field"><label>Incremento polar</label><select id="s_pol">${[5,10,15,22.5,30,45,90].map(v=>`<option${v===ST.polarInc?' selected':''}>${v}</option>`).join('')}</select></div>
-  <div class="field"><label>Passo do snap</label><input id="s_snap" type="number" value="${ST.snapX}"></div><div class="field"><label>Grade</label><input id="s_grid" type="number" value="${ST.gridX}"></div>
-  <div class="field"><label>Escala de linha</label><input id="s_lts" type="number" value="${doc.ltscale}"></div>
+  <div class="field"><label>Passo do snap</label><input id="s_snap" type="number" value="${num0(ST.snapX)}"></div><div class="field"><label>Grade</label><input id="s_grid" type="number" value="${num0(ST.gridX)}"></div>
+  <div class="field"><label>Escala de linha</label><input id="s_lts" type="number" value="${num0(doc.ltscale)}"></div>
   <div class="ph" ${focus==='dim'?'id="fdim"':''}>Estilo de cota</div>
-  <div class="field"><label>Escala (1:n)</label><input id="d_sc" type="number" value="${D.scale}"></div><div class="field"><label>Texto (mm papel)</label><input id="d_tx" type="number" step="0.1" value="${D.txt}"></div>
+  <div class="field"><label>Escala (1:n)</label><input id="d_sc" type="number" value="${num0(D.scale)}"></div><div class="field"><label>Texto (mm papel)</label><input id="d_tx" type="number" step="0.1" value="${num0(D.txt)}"></div>
   <div class="field"><label>Terminação</label><select id="d_ar">${[['tick','Traço oblíquo'],['arrow','Seta'],['dot','Ponto']].map(([v,n])=>`<option value="${v}"${D.arrow===v?' selected':''}>${n}</option>`).join('')}</select></div>
-  <div class="field"><label>Casas decimais</label><input id="d_dec" type="number" min="0" max="4" value="${D.dec}"></div><div class="field"><label>Espaço base (mm)</label><input id="d_dli" type="number" value="${D.dli}"></div>
-  <div class="ph">Parede padrão</div><div class="field"><label>Espessura</label><input id="w_t" type="number" value="${W.t}"></div><div class="field"><label>Isolamento</label><input id="w_i" type="number" value="${W.ins}"></div><div class="field"><label>Altura</label><input id="w_h" type="number" value="${W.h}"></div></div></div>
+  <div class="field"><label>Casas decimais</label><input id="d_dec" type="number" min="0" max="4" value="${num0(D.dec)}"></div><div class="field"><label>Espaço base (mm)</label><input id="d_dli" type="number" value="${num0(D.dli)}"></div>
+  <div class="ph">Parede padrão</div><div class="field"><label>Espessura</label><input id="w_t" type="number" value="${num0(W.t)}"></div><div class="field"><label>Isolamento</label><input id="w_i" type="number" value="${num0(W.ins)}"></div><div class="field"><label>Altura</label><input id="w_h" type="number" value="${num0(W.h)}"></div></div></div>
   <p class="small">Unidade de trabalho: milímetro. Coordenadas: x,y absoluto · @dx,dy relativo · @dist&lt;ângulo polar · número sozinho = distância direta na direção do cursor.</p>`,
   [{label:'Cancelar',fn:()=>{}},{label:'Aplicar',primary:true,fn:()=>{$$('[data-os]').forEach(c=>ST.os[c.dataset.os]=c.checked);ST.polarInc=+$('#s_pol').value;ST.snapX=+$('#s_snap').value||100;ST.gridX=+$('#s_grid').value||1000;
     withUndo(()=>{doc.ltscale=+$('#s_lts').value||1;Object.assign(D,{scale:+$('#d_sc').value||50,txt:+$('#d_tx').value||2.5,arrow:$('#d_ar').value,dec:+$('#d_dec').value||0,dli:+$('#d_dli').value||7});Object.assign(W,{t:+$('#w_t').value||300,ins:+$('#w_i').value||0,h:+$('#w_h').value||2800})});saveSettings();syncStatus()}}]);
@@ -1643,7 +1647,8 @@ const IMGC=new Map();function imgOf(src){let i=IMGC.get(src);if(!i){i=new Image(
 EXT.image={draw(e,ov){const im=imgOf(e.src);if(!ov&&im.complete&&im.naturalWidth){ctx.save();ctx.globalAlpha=e.alpha??1;ctx.translate(e.p.x,e.p.y+e.h);ctx.rotate(0);ctx.scale(1,-1);ctx.drawImage(im,0,0,e.w,e.h);ctx.restore()}
   stroke(e,ov);if(ov||!im.complete){ctx.beginPath();ctx.rect(e.p.x,e.p.y,e.w,e.h);ctx.stroke()}},bbox:e=>{imgOf(e.src);return{x0:e.p.x,y0:e.p.y,x1:e.p.x+e.w,y1:e.p.y+e.h}},
   dist(e,p){return p.x>=e.p.x&&p.x<=e.p.x+e.w&&p.y>=e.p.y&&p.y<=e.p.y+e.h?TOLW*0.8:1e9},xf(e,M){const a=Map_(M,e.p),b=Map_(M,P(e.p.x+e.w,e.p.y+e.h));e.p=P(Math.min(a.x,b.x),Math.min(a.y,b.y));e.w=Math.abs(b.x-a.x);e.h=Math.abs(b.y-a.y)},
-  svg:e=>`<image href="${e.src}" x="${e.p.x}" y="${e.p.y}" width="${e.w}" height="${e.h}" transform="translate(0 ${2*e.p.y+e.h}) scale(1 -1)" opacity="${e.alpha??1}"/>`};
+  svg:e=>{const x=num0(e.p.x),y=num0(e.p.y),w=num0(e.w),h=num0(e.h);const src=/^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/.test(String(e.src))?e.src:'';
+    return src?`<image href="${esc(src)}" x="${x}" y="${y}" width="${w}" height="${h}" transform="translate(0 ${2*y+h}) scale(1 -1)" opacity="${num0(e.alpha??1)}"/>`:''}};
 const imgIn=document.createElement('input');imgIn.type='file';imgIn.accept='image/*';imgIn.hidden=true;document.body.appendChild(imgIn);
 defCmd('IMAGEATTACH',{al:['IAT','IMAGEM','IMAGE'],instant:true,desc:'Anexar imagem (foto, croqui, planta escaneada)'},()=>imgIn.click());
 imgIn.onchange=async ev=>{const f=ev.target.files[0];ev.target.value='';if(!f)return;const src=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f)});
@@ -1674,7 +1679,7 @@ defCmd('IMAGETRACE',{al:['VETORIZAR','TRACE','VECTORIZE'],desc:'Vetorizar imagem
 
 /* ---------- 6. folhas com viewports ---------- */
 function vpSVG(m,tbh,W,H){const out=[];const list=doc.ents.filter(visible);
-  (doc.vps||[]).forEach((v,i)=>{const off=new Set(String(v.off||'').split(',').map(s=>s.trim()).filter(Boolean)),k=1/v.sc;
+  (doc.vps||[]).forEach((v0,i)=>{const v={...v0};for(const q of ['x','y','w','h','cx','cy','sc'])v[q]=num0(v0[q]);if(!v.sc)v.sc=1;const off=new Set(String(v.off||'').split(',').map(s=>s.trim()).filter(Boolean)),k=1/v.sc;
     out.push(`<defs><clipPath id="vpc${i}"><rect x="${v.x}" y="${v.y}" width="${v.w}" height="${v.h}"/></clipPath></defs><g clip-path="url(#vpc${i})"><g transform="translate(${v.x+v.w/2} ${v.y+v.h/2}) scale(${k} ${-k}) translate(${-v.cx} ${-v.cy})" stroke-linecap="round" stroke-linejoin="round">${entsSVG(list.filter(e=>!off.has(e.layer)),k,PLT.mono)}</g></g>`);
     if(v.frame!==false)out.push(`<rect x="${v.x}" y="${v.y}" width="${v.w}" height="${v.h}" fill="none" stroke="#000" stroke-width="0.18"/>`);
     out.push(`<text x="${v.x}" y="${v.y+v.h+4}" font-size="2.6" font-weight="600" font-family="IBM Plex Sans, Arial">${esc(v.title||('Vista '+(i+1)))}</text><text x="${v.x}" y="${v.y+v.h+7.2}" font-size="2" font-family="IBM Plex Sans, Arial">Escala 1:${v.sc}</text>`)});
@@ -1682,7 +1687,7 @@ function vpSVG(m,tbh,W,H){const out=[];const list=doc.ents.filter(visible);
 function renderVP(){const box=$('#vpBox');if(!box)return;const V_=doc.vps||[];
   box.innerHTML=(V_.length?`<div class="small">Coordenadas na folha em mm a partir do canto superior esquerdo. Camadas ocultas separadas por vírgula.</div>`:`<div class="small">Sem viewports: a folha usa uma única vista do desenho. Adicione viewports para montar várias vistas em escalas diferentes (planta 1:50 + detalhe 1:20…).</div>`)+
   V_.map((v,i)=>`<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:6px 0;border-bottom:1px solid var(--line)">
-   <input data-vp="${i}" data-k="title" value="${esc(v.title||'')}" placeholder="Título" style="grid-column:span 2">${['sc','x','y','w','h','cx','cy'].map(k=>`<label class="small">${{sc:'1:',x:'x',y:'y',w:'larg.',h:'alt.',cx:'centro X',cy:'centro Y'}[k]}<input data-vp="${i}" data-k="${k}" type="number" value="${+(+v[k]).toFixed(1)}" style="width:100%"></label>`).join('')}
+   <input data-vp="${i}" data-k="title" value="${esc(v.title||'')}" placeholder="Título" style="grid-column:span 2">${['sc','x','y','w','h','cx','cy'].map(k=>`<label class="small">${{sc:'1:',x:'x',y:'y',w:'larg.',h:'alt.',cx:'centro X',cy:'centro Y'}[k]}<input data-vp="${i}" data-k="${k}" type="number" value="${+num0(v[k]).toFixed(1)}" style="width:100%"></label>`).join('')}
    <input data-vp="${i}" data-k="off" value="${esc(v.off||'')}" placeholder="Camadas ocultas" style="grid-column:span 3"><button class="tb" data-vpdel="${i}">Remover</button></div>`).join('')+
   `<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap"><button class="tb" id="vpAdd">+ Viewport (marcar área no modelo)</button><button class="tb" id="vpAuto">Uma vista ajustada</button></div>`;
   box.querySelectorAll('input').forEach(inp=>inp.style.cssText+=';padding:4px;border:1px solid var(--line);border-radius:4px;background:var(--panel2);font-size:12px');
@@ -1943,7 +1948,7 @@ EXT.pipe={geom(e){const r=e.od/2,segs=plSegs(e.pts,false),L=[],C=[];for(const s 
   bbox(e){const b=bboxPts(e.pts);const r=e.od/2;return{x0:b.x0-r,y0:b.y0-r,x1:b.x1+r,y1:b.y1+r}},
   dist(e,p){let d=Infinity;for(const s of plSegs(e.pts,false))d=Math.min(d,dist(p,closestOnPrim(s,p)));return Math.max(0,d-e.od/2)},
   xf(e,M){e.pts=e.pts.map(p=>Map_(M,p))},
-  svg(e){const g=EXT.pipe.geom(e);return`<path d="${g.L.map(([a,b])=>`M${a.x} ${a.y}L${b.x} ${b.y}`).join('')}" stroke="#000" stroke-width="${Math.max(2,e.od/60)}" fill="none"/>`},
+  svg(e){const g=EXT.pipe.geom(e);return`<path d="${g.L.map(([a,b])=>`M${num0(a.x)} ${num0(a.y)}L${num0(b.x)} ${num0(b.y)}`).join('')}" stroke="#000" stroke-width="${num0(Math.max(2,e.od/60))}" fill="none"/>`},
   three(e,{gF,mat}){const T=window.THREE,M=v=>v/1000;const col=e.shape==='tray'?'#c4a24a':(e.c3||'#7c8a96');const m=mat(col,{metalness:.3,roughness:.5});
     for(const s of plSegs(e.pts,false)){const L=dist(s.a,s.b);if(L<1)continue;const c=mid(s.a,s.b);
       if(e.shape==='tray'){const g=new T.BoxGeometry(M(L),M(e.h||100),M(e.od));const ms=new T.Mesh(g,m);ms.position.set(M(c.x),M(e.el),-M(c.y));ms.rotation.y=ang(s.a,s.b);ms.castShadow=true;gF.add(ms);continue}

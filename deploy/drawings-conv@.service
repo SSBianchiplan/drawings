@@ -1,0 +1,70 @@
+# GPlanSiS|Drawings — uma conversão DWG<->DXF por conexão, isolada do resto do servidor.
+# Disparado por drawings-conv.socket (Accept=yes). Entrada e saída são o próprio socket.
+# O processo não enxerga o .env da API, não tem rede, não grava fora do próprio /tmp
+# privado e morre por prazo, memória ou CPU. Código: /opt/drawings-conv/conversor.py
+# (cópia de server/conversor.py, dono root, só leitura).
+[Unit]
+Description=GPlanSiS|Drawings — conversão DWG isolada
+CollectMode=inactive-or-failed
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I -S /opt/drawings-conv/conversor.py --servico
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+Environment=DRAWINGS_LIBREDWG_BIN=/opt/libredwg/bin
+Environment=DRAWINGS_CONV_TIMEOUT_S=120
+Environment=DRAWINGS_CONV_CPU_S=110
+Environment=DRAWINGS_CONV_MEM_MB=1536
+Environment=DRAWINGS_CONV_FSIZE_MB=400
+
+# usuário próprio, criado e apagado pelo systemd a cada conversão (sem grupo drawings)
+DynamicUser=yes
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# sistema de arquivos: tudo só leitura, /home e a aplicação invisíveis, /tmp privado
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+InaccessiblePaths=-/opt/drawings -/etc/caddy -/var/lib/postgresql -/var/run/postgresql -/run/postgresql -/root
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+
+# sem rede (só o socket já aberto pelo systemd)
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+
+# chamadas de sistema e afins
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+KeyringMode=private
+RemoveIPC=yes
+DevicePolicy=closed
+
+# recursos (o conversor.py ainda aplica setrlimit no processo do LibreDWG)
+MemoryMax=1800M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=4
+RuntimeMaxSec=180
+LimitCORE=0
+LimitNOFILE=64
+LimitFSIZE=450M

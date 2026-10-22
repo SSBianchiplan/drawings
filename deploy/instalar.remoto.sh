@@ -34,6 +34,14 @@ grep -q '^DRAWINGS_SEGREDO=' "$APP/.env" || echo "DRAWINGS_SEGREDO=$("$APP/.venv
 sed -i 's/^DRAWINGS_IA_MODELO=claude-sonnet-5-5$/DRAWINGS_IA_MODELO=claude-opus-5-5/' "$APP/.env"
 # conversor de DWG (LibreDWG em /opt/libredwg, compilado uma vez no servidor)
 [ -x /opt/libredwg/bin/dwg2dxf ] && echo "dwg2dxf: $(/opt/libredwg/bin/dwg2dxf --version | head -1)" || echo "AVISO: /opt/libredwg/bin/dwg2dxf ausente — leitura de DWG desligada"
+# conversão isolada: serviço por socket com usuário dinâmico, sem rede e sem acesso a /opt/drawings
+install -d -m 755 -o root -g root /opt/drawings-conv
+install -m 644 -o root -g root "$SRC/server/conversor.py" /opt/drawings-conv/conversor.py
+install -m 644 "$SRC/deploy/drawings-conv.socket" /etc/systemd/system/drawings-conv.socket
+install -m 644 "$SRC/deploy/drawings-conv@.service" "/etc/systemd/system/drawings-conv@.service"
+systemctl daemon-reload
+systemctl enable --now drawings-conv.socket >/dev/null 2>&1
+grep -q '^DRAWINGS_CONV_SOCKET=' "$APP/.env" || echo "DRAWINGS_CONV_SOCKET=/run/drawings-conv.sock" >> "$APP/.env"
 chown -R root:drawings "$APP"; chmod 751 "$APP"; chmod 640 "$APP/.env"; chmod -R a+rX "$APP/web"
 # administrador master: criado uma única vez (senha temporária impressa abaixo, troca obrigatória)
 ( cd "$APP/server" && sudo -u drawings env DRAWINGS_DSN="postgresql:///drawings?host=/var/run/postgresql" DRAWINGS_MASTER="$MASTER" "$APP/.venv/bin/python" app.py criar-admin "$MASTER" --nome "$MASTER_NOME" --se-nao-existir )

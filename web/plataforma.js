@@ -326,7 +326,7 @@ async function dlgEnviarDocs(){
       ${v.revisao.status!=='EM_ELABORACAO'?'<div class="field"><label>O que mudou</label><input id="dxDesc" maxlength="300" placeholder="Descrição da nova revisão (ex.: atende comentários 1 a 3)"></div>':''}`
      :`<div class="field"><label>Projeto</label><select id="dxProj">${op.projetos.map(p=>`<option value="${p.id}">${esc(p.code)} · ${esc(p.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Disciplina</label><select id="dxDisc"></select></div>
-      <div class="field"><label>Tipo</label><select id="dxTipo">${op.tipos.map(t=>`<option value="${t.code}"${t.code==='DE'?' selected':''}>${esc(t.code)} · ${esc(t.name)}</option>`).join('')}</select></div>
+      <div class="field"><label>Tipo</label><select id="dxTipo">${op.tipos.map(t=>`<option value="${esc(t.code)}"${t.code==='DE'?' selected':''}>${esc(t.code)} · ${esc(t.name)}</option>`).join('')}</select></div>
       <div class="field"><label>Título</label><input id="dxTit" maxlength="200" value="${esc(PLT.title&&PLT.title!=='Planta baixa'?PLT.title:doc.name)}"></div>`}
     <div class="field"><label>Folha</label><input readonly value="${esc(PLT.paper)} ${PLT.orient==='L'?'paisagem':'retrato'} · ${PLT.scale==='fit'?'ajustada':'1:'+esc(PLT.scale)} · folha ${esc(PLT.sheet)}"></div>
     <p class="small" style="margin:0 0 6px 102px"><button class="tb" id="dxPlot" style="min-height:24px;padding:2px 8px">Ajustar papel, escala e carimbo…</button></p>
@@ -336,16 +336,16 @@ async function dlgEnviarDocs(){
   $('#dxPlot').onclick=()=>{closeModal();setTimeout(()=>{dlgPlot();toast('Ajuste a folha e feche; depois use Enviar ao Docs de novo',4000)},40)};
   const projetoAtual=()=>v?v.projeto.id:$('#dxProj').value;
   const pintaDisc=()=>{if(v)return;const pid=$('#dxProj').value,hab=op.disciplinasProjeto.filter(x=>x.project_id===pid).map(x=>x.code);
-    const L=op.disciplinas.filter(d=>!hab.length||hab.includes(d.code));$('#dxDisc').innerHTML=L.map(d=>`<option value="${d.code}"${d.code===sug?' selected':''}>${esc(d.code)} · ${esc(d.name)}</option>`).join('')};
+    const L=op.disciplinas.filter(d=>!hab.length||hab.includes(d.code));$('#dxDisc').innerHTML=L.map(d=>`<option value="${esc(d.code)}"${d.code===sug?' selected':''}>${esc(d.code)} · ${esc(d.name)}</option>`).join('')};
   if(!v){pintaDisc();$('#dxProj').onchange=()=>{pintaDisc();if($('#dxFluxo').checked)pintaFluxo()}}
   let fluxos=op?op.fluxos:null;
   const pintaFluxo=async()=>{const box=$('#dxFluxoBox');box.hidden=false;box.innerHTML='<p class="small">Carregando a equipe do projeto…</p>';
     try{if(!fluxos)fluxos=(await api('GET','/api/docs/opcoes')).fluxos;const pid=projetoAtual();const T=fluxos.filter(t=>!t.project_id||t.project_id===pid);
       const mem=await api('GET',`/api/docs/projetos/${pid}/membros`);
       const pode=(papel,req)=>papel==='ADMIN'||papel===req||(req==='REVISOR'&&papel==='CONTROLADOR');
-      const desenha=t=>`<div class="field"><label>Fluxo</label><select id="dxTpl">${T.map(x=>`<option value="${x.id}"${x.id===t.id?' selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
+      const desenha=t=>`<div class="field"><label>Fluxo</label><select id="dxTpl">${T.map(x=>`<option value="${esc(x.id)}"${x.id===t.id?' selected':''}>${esc(x.name)}</option>`).join('')}</select></div>
         <div class="pl-steps">${t.steps.map(s=>{const ok=mem.filter(m=>pode(m.role,s.role_required)&&m.email.toLowerCase()!==S.me.login).sort((x,y)=>(y.role===s.role_required)-(x.role===s.role_required));  // quem tem o perfil exato vem primeiro
-          return `<div class="field"><label>${s.step_order}. ${esc(s.name)}</label><select data-step="${s.step_order}">${ok.length?ok.map(m=>`<option value="${m.id}">${esc(m.name)} · ${esc(m.role)}</option>`).join(''):'<option value="">ninguém com perfil '+esc(s.role_required)+' no projeto</option>'}</select></div>`}).join('')}</div>
+          return `<div class="field"><label>${+s.step_order}. ${esc(s.name)}</label><select data-step="${+s.step_order}">${ok.length?ok.map(m=>`<option value="${esc(m.id)}">${esc(m.name)} · ${esc(m.role)}</option>`).join(''):'<option value="">ninguém com perfil '+esc(s.role_required)+' no projeto</option>'}</select></div>`}).join('')}</div>
         <p class="small">Prazo e regras seguem o fluxo do Docs; quem envia não pode aprovar a própria revisão.</p>`;
       if(!T.length){box.innerHTML='<p class="small">Nenhum fluxo de verificação disponível para este projeto no Docs.</p>';return}
       box.innerHTML=desenha(T[0]);box.onchange=e=>{if(e.target.id==='dxTpl'){box.innerHTML=desenha(T.find(x=>x.id===e.target.value));}}}
@@ -543,7 +543,7 @@ function tabelaScript(t){// desenha a tabela à direita do desenho, com textos n
   [t.colunas,...t.linhas].forEach((lin,j)=>{let cx=x0;lin.forEach((v,i)=>{if(String(v??'').trim())L.push('TEXT','J','ML',`${r(cx+pad)},${r(y0-lh*(j+1)-lh/2)}`,String(r(h)),'0',String(v).replace(/\n/g,' '));cx+=cols[i]})});
   L.push('ZE');return L}
 function mostraIA(r){const out=$('#iaOut');if(!out)return;const G={alta:'dg',media:'ac',baixa:''};
-  out.innerHTML=`<p style="margin:0 0 6px"><b>${esc(r.resumo||'')}</b> <span class="small">${esc(r._modelo||'')} · ${r._s} s</span></p>
+  out.innerHTML=`<p style="margin:0 0 6px"><b>${esc(r.resumo||'')}</b> <span class="small">${esc(r._modelo||'')} · ${+r._s||0} s</span></p>
     ${r.achados.length?`<div class="ph">Achados (${r.achados.length})</div><div class="flist">${r.achados.map(a=>`<div><span><span class="pl-badge ${G[a.gravidade]}">${esc(a.gravidade)}</span> ${esc(a.item)}<br><small class="small">${esc(a.onde)}</small></span></div>`).join('')}</div>`:''}
     ${r.tabelas.map((t,i)=>`<div class="ph">${esc(t.titulo)} <span class="small">(${t.linhas.length} linha${t.linhas.length===1?'':'s'})</span></div>
       <div class="pl-scroll" style="max-height:260px"><table class="pl-tbl"><thead><tr>${t.colunas.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.linhas.map(l=>`<tr>${l.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>

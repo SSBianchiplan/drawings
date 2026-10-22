@@ -34,10 +34,10 @@ from pathlib import Path
 import anthropic
 import httpx
 import asyncio
-import tempfile
 from cryptography.fernet import Fernet, InvalidToken
 
 import assistente
+import conversor
 import exporta
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -51,8 +51,6 @@ MASTER = os.environ.get("DRAWINGS_MASTER", "").strip().lower()
 IA_KEY_ENV = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 IA_MODELO_PADRAO = os.environ.get("DRAWINGS_IA_MODELO", "claude-opus-5-5")
 SEGREDO = os.environ.get("DRAWINGS_SEGREDO", "").strip()
-DWG2DXF = os.environ.get("DRAWINGS_DWG2DXF", "/opt/libredwg/bin/dwg2dxf")
-DXF2DWG = os.environ.get("DRAWINGS_DXF2DWG", "/opt/libredwg/bin/dxf2dwg")
 CAD_MAX = 40 * 1024 * 1024
 SESSAO_H = int(os.environ.get("DRAWINGS_SESSAO_HORAS", "12"))
 COOKIE = "drawings_s"
@@ -126,7 +124,10 @@ def db():
 
 
 def ip_de(req: Request) -> str:
-    return (req.headers.get("x-forwarded-for", "").split(",")[0].strip() or (req.client.host if req.client else ""))
+    # O uvicorn roda com --proxy-headers --forwarded-allow-ips 127.0.0.1: client.host já é o IP
+    # real que o Caddy informou. Ler o X-Forwarded-For à mão aceitaria um valor forjado pelo cliente
+    # se o proxy um dia deixar de sobrescrever o cabeçalho.
+    return req.client.host if req.client else ""
 
 
 def registra(cur, evento: str, req: Request | None, usuario: dict | None = None, login: str | None = None, detalhe: str = ""):
@@ -234,6 +235,33 @@ def exige(perm: str):
 exige_admin = exige("usuarios")
 
 FALHAS_IP: dict[str, deque] = defaultdict(deque)
+# Falhas por (login, IP), em memória: trava o par e não a conta inteira. Assim ninguém de fora
+# tranca o administrador master (nem outro usuário) só errando a senha dele de outro endereço,
+# e a resposta é a mesma para e-mail existente ou inexistente (sem enumeração).
+FALHAS_PAR: dict[tuple[str, str], deque] = defaultdict(deque)
+JANELA_S = 900
+MAX_FALHAS_PAR = 5
+MAX_FALHAS_IP = 20
+# e-mails inexistentes também "travam" depois de 5 falhas (de qualquer origem), como uma conta real
+FALHAS_INEXISTENTE: dict[str, deque] = defaultdict(deque)
+# Para e-mail inexistente o servidor faz o mesmo trabalho de scrypt (tempo igual)
+_HASH_FICTICIO = None
+
+
+def _poda(q: deque, agora: float) -> deque:
+    while q and q[0] < agora - JANELA_S:
+        q.popleft()
+    return q
+
+
+def hash_ficticio() -> str:
+    global _HASH_FICTICIO
+    if _HASH_FICTICIO is None:
+        _HASH_FICTICIO = hash_senha(secrets.token_urlsafe(16))
+    return _HASH_FICTICIO
+
+
+MSG_BLOQUEIO = "Acesso bloqueado temporariamente por tentativas inválidas — aguarde 15 minutos ou peça desbloqueio ao administrador"
 
 
 class Login(BaseModel):
@@ -245,41 +273,57 @@ class Login(BaseModel):
 def saude():
     with db() as c:
         c.execute("select 1")
-    return {"ok": True, "app": "drawings", "ia": ia_cfg()["pronta"], "dwg": os.access(DWG2DXF, os.X_OK)}
+    return {"ok": True, "app": "drawings", "ia": ia_cfg()["pronta"], "dwg": conversor.disponivel()}
 
 
 @app.post("/api/auth/login")
 def login(body: Login, request: Request, response: Response):
     ip = ip_de(request)
-    q = FALHAS_IP[ip]
     agora = time.time()
-    while q and q[0] < agora - 900:
-        q.popleft()
-    if len(q) >= 20:
+    q = _poda(FALHAS_IP[ip], agora)
+    if len(q) >= MAX_FALHAS_IP:
         raise HTTPException(429, "Muitas tentativas deste endereço — aguarde 15 minutos")
     lg = body.login.strip().lower()
+    par = _poda(FALHAS_PAR[(lg, ip)], agora)
     with db() as c:
         cur = c.cursor()
         cur.execute("select * from drawings.usuarios where lower(login) = %s", (lg,))
         u = cur.fetchone()
-        if u and u["bloqueado_ate"] and u["bloqueado_ate"] > datetime.now(timezone.utc):
-            registra(cur, "LOGIN_BLOQUEADO", request, u)
+        # bloqueio da conta (todas as origens) — nunca para o master, que só é travado por par login+IP
+        conta_bloqueada = bool(u and not u["master"] and u["bloqueado_ate"] and u["bloqueado_ate"] > datetime.now(timezone.utc))
+        if not u:
+            if len(FALHAS_INEXISTENTE) > 50_000:
+                FALHAS_INEXISTENTE.clear()
+            conta_bloqueada = len(_poda(FALHAS_INEXISTENTE[lg], agora)) >= MAX_FALHAS_PAR
+        if conta_bloqueada or len(par) >= MAX_FALHAS_PAR:
+            registra(cur, "LOGIN_BLOQUEADO", request, u, login=lg)
             c.commit()
-            raise HTTPException(423, "Usuário bloqueado temporariamente por tentativas inválidas — aguarde 15 minutos ou peça desbloqueio ao administrador")
-        if not u or not u["ativo"] or not confere_senha(body.senha, u["senha_hash"]):
+            raise HTTPException(423, MSG_BLOQUEIO)
+        senha_ok = confere_senha(body.senha, u["senha_hash"] if u else hash_ficticio())
+        if not u or not u["ativo"] or not senha_ok:
             q.append(agora)
+            par.append(agora)
+            if not u:
+                FALHAS_INEXISTENTE[lg].append(agora)
             if u:
-                cur.execute("""update drawings.usuarios set falhas = falhas + 1,
-                               bloqueado_ate = case when falhas + 1 >= 5 then now() + interval '15 minutes' else bloqueado_ate end
-                               where id = %s""", (u["id"],))
+                # o contador zera quando a última falha é antiga ou quando o bloqueio anterior já venceu
+                cur.execute("""update drawings.usuarios set
+                                 falhas = case when ultima_falha is null or ultima_falha < now() - interval '15 minutes'
+                                                    or (bloqueado_ate is not null and bloqueado_ate <= now()) then 1 else falhas + 1 end,
+                                 ultima_falha = now()
+                               where id = %s returning falhas""", (u["id"],))
+                n = cur.fetchone()["falhas"]
+                cur.execute("update drawings.usuarios set bloqueado_ate = case when %s and not master then now() + interval '15 minutes' else null end where id = %s",
+                            (n >= MAX_FALHAS_PAR, u["id"]))
             registra(cur, "LOGIN_FALHA", request, u, login=lg)
             c.commit()
             time.sleep(0.4)
             raise HTTPException(401, "E-mail ou senha inválidos")
+        par.clear()
         tok = secrets.token_urlsafe(32)
         cur.execute("insert into drawings.sessoes(token_hash, usuario_id, expira_em, ip, ua) values (%s,%s, now() + make_interval(hours => %s), %s, %s)",
                     (th(tok), u["id"], SESSAO_H, ip, request.headers.get("user-agent", "")[:300]))
-        cur.execute("update drawings.usuarios set falhas = 0, bloqueado_ate = null, ultimo_login = now() where id = %s returning *", (u["id"],))
+        cur.execute("update drawings.usuarios set falhas = 0, bloqueado_ate = null, ultima_falha = null, ultimo_login = now() where id = %s returning *", (u["id"],))
         u = cur.fetchone()
         registra(cur, "LOGIN", request, u)
     response.set_cookie(COOKIE, tok, max_age=SESSAO_H * 3600 * 2, httponly=True, secure=COOKIE_SEGURO, samesite="strict", path="/")
@@ -287,7 +331,7 @@ def login(body: Login, request: Request, response: Response):
 
 
 def me_payload(u: dict) -> dict:
-    return {**publico(u), "prefs": u.get("prefs") or {}, "ia": ia_cfg()["pronta"], "docs": bool(DOCS_SEG), "docsUrl": DOCS_URL, "dwg": os.access(DWG2DXF, os.X_OK), "perms": PERMS,
+    return {**publico(u), "prefs": u.get("prefs") or {}, "ia": ia_cfg()["pronta"], "docs": bool(DOCS_SEG), "docsUrl": DOCS_URL, "dwg": conversor.disponivel(), "perms": PERMS,
             "papeis": PADRAO, "papelRotulo": PAPEL_ROTULO}
 
 
@@ -552,10 +596,12 @@ def redefine_senha(uid: int, request: Request, adm: dict = Depends(exige_admin))
 def desbloqueia(uid: int, request: Request, adm: dict = Depends(exige_admin)):
     with db() as c:
         cur = c.cursor()
-        cur.execute("update drawings.usuarios set falhas = 0, bloqueado_ate = null where id = %s returning login", (uid,))
+        cur.execute("update drawings.usuarios set falhas = 0, bloqueado_ate = null, ultima_falha = null where id = %s returning login", (uid,))
         r = cur.fetchone()
         if not r:
             raise HTTPException(404, "Usuário não encontrado")
+        for k in [k for k in FALHAS_PAR if k[0] == r["login"].lower()]:
+            FALHAS_PAR.pop(k, None)
         registra(cur, "USUARIO_DESBLOQUEADO", request, adm, detalhe=r["login"])
     return {"ok": True}
 
@@ -1173,11 +1219,21 @@ async def testa_ia(body: IATeste, u: dict = Depends(exige_admin)):
 
 
 # ---------------------------------------------------------------- arquivos CAD
+def erro_conversao(e: "conversor.ErroConversao", falha: str, prazo: str) -> HTTPException:
+    if e.codigo == "ocupado":
+        return HTTPException(503, "O conversor está ocupado com outro arquivo — tente de novo em instantes")
+    if e.codigo == "prazo":
+        return HTTPException(504, prazo)
+    if e.codigo == "indisponivel":
+        return HTTPException(503, "Conversor de DWG indisponível no servidor")
+    return HTTPException(422, f"{falha} ({e.msg or 'formato não suportado'})")
+
+
 @app.post("/api/cad/dwg2dxf")
 async def converte_dwg(request: Request, u: dict = Depends(exige("importar"))):
     """Recebe um .dwg (corpo bruto) e devolve o DXF equivalente, convertido pelo LibreDWG.
     O DXF é lido no navegador pelo mesmo leitor dos arquivos .dxf."""
-    if not os.access(DWG2DXF, os.X_OK):
+    if not conversor.disponivel("dwg2dxf"):
         raise HTTPException(503, "Conversor de DWG não instalado no servidor")
     corpo = await request.body()
     if len(corpo) > CAD_MAX:
@@ -1186,19 +1242,11 @@ async def converte_dwg(request: Request, u: dict = Depends(exige("importar"))):
         raise HTTPException(422, "Não é um arquivo DWG válido")
     versao = corpo[:6].decode("ascii", "replace")
     nome = re.sub(r"[^\w.\- ]+", "_", request.headers.get("x-arquivo", "desenho.dwg"))[:120]
-    with tempfile.TemporaryDirectory(prefix="dwg-") as tmp:
-        ent, sai = Path(tmp) / "in.dwg", Path(tmp) / "out.dxf"
-        ent.write_bytes(corpo)
-        proc = await asyncio.create_subprocess_exec(DWG2DXF, "-y", "-o", str(sai), str(ent),
-                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=tmp)
-        try:
-            _, err = await asyncio.wait_for(proc.communicate(), timeout=150)
-        except asyncio.TimeoutError:
-            proc.kill()
-            raise HTTPException(504, "A conversão demorou demais — o DWG pode ser muito grande ou estar corrompido")
-        if not sai.exists() or sai.stat().st_size < 100:
-            raise HTTPException(422, "Não foi possível converter este DWG (" + (err.decode("utf-8", "replace").strip().splitlines() or ["formato não suportado"])[-1][:200] + ")")
-        dxf = sai.read_bytes()
+    # isolado: ambiente vazio, diretório próprio, limites de recurso, um por vez (ver conversor.py)
+    try:
+        dxf = await conversor.converte("dwg2dxf", corpo)
+    except conversor.ErroConversao as e:
+        raise erro_conversao(e, "Não foi possível converter este DWG", "A conversão demorou demais — o DWG pode ser muito grande ou estar corrompido")
     with db() as c:
         registra(c.cursor(), "DWG_CONVERTIDO", request, u, detalhe=f"{nome} ({versao}, {len(corpo) // 1024} KB)")
     return Response(dxf, media_type="application/dxf", headers={"x-dwg-versao": versao})
@@ -1225,22 +1273,12 @@ async def exporta_cad(request: Request, formato: str = "dxf", u: dict = Depends(
         with db() as c:
             registra(c.cursor(), "EXPORTADO", request, u, detalhe=detalhe)
         return Response(dxf, media_type="application/dxf", headers={"Content-Disposition": f'attachment; filename="{nome}.dxf"'})
-    if not os.access(DXF2DWG, os.X_OK):
+    if not conversor.disponivel("dxf2dwg"):
         raise HTTPException(503, "Conversor para DWG não instalado no servidor")
-    with tempfile.TemporaryDirectory(prefix="dwgout-") as tmp:
-        ent, sai = Path(tmp) / "in.dxf", Path(tmp) / "out.dwg"
-        ent.write_bytes(dxf)
-        proc = await asyncio.create_subprocess_exec(DXF2DWG, "-y", "-o", str(sai), str(ent),
-                                                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, cwd=tmp)
-        try:
-            _, err = await asyncio.wait_for(proc.communicate(), timeout=150)
-        except asyncio.TimeoutError:
-            proc.kill()
-            raise HTTPException(504, "A geração do DWG demorou demais — use o DXF 2018")
-        if not sai.exists() or sai.stat().st_size < 1000:
-            raise HTTPException(422, "O conversor não conseguiu gerar o DWG deste desenho — use o DXF 2018 (" +
-                                (err.decode("utf-8", "replace").strip().splitlines() or ["sem detalhe"])[-1][:160] + ")")
-        dwg = sai.read_bytes()
+    try:
+        dwg = await conversor.converte("dxf2dwg", dxf if isinstance(dxf, bytes) else dxf.encode("utf-8"))
+    except conversor.ErroConversao as e:
+        raise erro_conversao(e, "O conversor não conseguiu gerar o DWG deste desenho — use o DXF 2018", "A geração do DWG demorou demais — use o DXF 2018")
     with db() as c:
         registra(c.cursor(), "EXPORTADO", request, u, detalhe=detalhe)
     return Response(dwg, media_type="application/acad", headers={"Content-Disposition": f'attachment; filename="{nome}.dwg"'})
